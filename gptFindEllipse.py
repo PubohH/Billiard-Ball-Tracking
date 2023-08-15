@@ -5,7 +5,7 @@ from collections import deque
 # Initialize the webcam
 videoname = '3CTest1' #input video clip name
 cap = cv2.VideoCapture(videoname + '.mp4') #可以直接输入视频名称，或者输入args.image后用cmd运行
-
+write_result = False
 
 
 # lower_color = np.array([40,130,0])
@@ -32,9 +32,10 @@ size = (frame_width, frame_height)
 # a frame of above defined The output
 # is stored in 'filename.avi' file.
 
-result = cv2.VideoWriter(videoname + ' Ellipse Track.mp4',
-                         cv2.VideoWriter_fourcc(*'mp4v'),
-                         60, size)
+if write_result:
+    result = cv2.VideoWriter(videoname + ' Ellipse Track.mp4',
+                             cv2.VideoWriter_fourcc(*'mp4v'),
+                             60, size)
 
 while True:
     # Read a frame from the webcam
@@ -85,11 +86,18 @@ while True:
                     continue
                 cv2.line(frame, trajectory[i - 1], trajectory[i], (200, 255, 255), 3)
 
+    
+    prompt_text = "Press 'q' to quit"
+    cv2.putText(frame, prompt_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
     # Show the frame
-    result.write(frame)
+    if write_result:
+        result.write(frame)
     frame = cv2.resize(frame, (0, 0), fx=0.8, fy=0.8)  # 将视频缩放，高=fy，宽=fx
-    cv2.imshow('frame', frame)
-
+    cv2.namedWindow("Resized_Window", cv2.WINDOW_NORMAL) # 框框的名字叫 "Resized Window"
+    cv2.resizeWindow("Resized_Window", int(size[0]*0.5), int(size[1]*0.5)) # 把视频框框变小
+    cv2.imshow('Resized_Window', frame)
+    
+    
     # Exit the loop if the 'q' key is pressed
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
