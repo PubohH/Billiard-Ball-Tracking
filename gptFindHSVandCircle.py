@@ -6,7 +6,7 @@ import argparse
 # click 10 times evenly across the ball you want to track, then press 'q', the tracked video will display and output to a mp4 file
 
 parser = argparse.ArgumentParser(description="A simple program that demonstrates argparse")
-parser.add_argument('--input', '-i', type=str, default='poolTest2', help='Input file path')
+parser.add_argument('--input', '-i', type=str, default='poolTest3', help='Input file path')
 parser.add_argument('--write-result', '-w', type=bool, default=False, help='Write result of tracking in [input] with trajectory.mp4')
 args = parser.parse_args()
 
@@ -53,11 +53,11 @@ ret, frame = cap.read()
 frame_width = int(cap.get(3))
 frame_height = int(cap.get(4))
 size = (frame_width, frame_height)
-
+ratio = size[1]/size[0]
 selected_frame = frame
 
 # Show the selected frame for HSV color selection
-selected_frame = cv2.resize(selected_frame, size, fx=0.4, fy=0.4)
+cv2.resizeWindow('frame', 1000, int(1000*ratio))
 cv2.imshow('frame', selected_frame)
 
 # Set a mouse callback function to get the HSV color coordinate of the pixel
@@ -99,16 +99,21 @@ while True:
 
     # Threshold the frame to get only the color pixels
     mask = cv2.inRange(hsv, lower_color, upper_color)
-    #TODO:Figure out the erode and dilate mechanisms
     '''
     This part is the key to getting precise contour of the object
+    :Erode and dilate three times to get optimal performance`
     '''
-    mask = cv2.erode(mask, None, iterations=2)
-    mask = cv2.dilate(mask, None, iterations=2)
-    # Convert the mask to a binary image
+    mask = cv2.erode(mask, None, iterations=3)
+    mask = cv2.dilate(mask, None, iterations=3)
+#    mask = cv2.GaussianBlur(mask, (5, 5), 1)  # (5, 5) kernel size, 0 standard deviation
+
+
+    ## Convert the mask to a binary image
     binary = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)[1]
-    # cv2.imshow('binary', mask)
-    cv2.waitKey()
+#    binImage = cv2.resize(binary, (0, 0), fx=0.4, fy=0.4)  # 将视频缩放，高=fy，宽=fx
+#    cv2.imshow('binary', binImage)
+#    cv2.waitKey()
+#    quit()
     # Find the contours of the color objects in the binary image
     contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -142,7 +147,8 @@ while True:
     # Show the frame
     if write_result:
         result.write(frame)
-    frame = cv2.resize(frame, (0, 0), fx=0.4, fy=0.4)  # 将视频缩放，高=fy，宽=fx
+    cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('frame', 1000, int(1000*ratio))
     cv2.imshow('frame', frame)
 
     # Exit the loop if the 'q' key is pressed
