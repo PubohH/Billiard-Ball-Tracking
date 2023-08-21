@@ -89,6 +89,7 @@ if write_result:
     result = cv2.VideoWriter(videoname + ' with trajectory.mp4',
                              cv2.VideoWriter_fourcc(*'mp4v'),
                              60, size)
+cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
 
 while True:
     # Read a frame from the webcam
@@ -99,11 +100,13 @@ while True:
 
     # Threshold the frame to get only the color pixels
     mask = cv2.inRange(hsv, lower_color, upper_color)
+    cv2.imshow("frame", mask)
     #TODO:Figure out the erode and dilate mechanisms
     '''
     This part is the key to getting precise contour of the object
     '''
-    mask = cv2.erode(mask, None, iterations=2)
+    # Number of iterations, which is best?
+    mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=2)
     # Convert the mask to a binary image
     binary = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)[1]
