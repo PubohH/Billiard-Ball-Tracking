@@ -12,6 +12,7 @@ args = parser.parse_args()
 
 # Global variables
 write_result = False
+window_size = 1000
 selected_frame = None
 hsvList = []
 sens = 40 #tolerance of HSV coordinates, change this (20, 30, 40, etc) to achieve best tracking.
@@ -30,7 +31,7 @@ def get_color(event, x, y, flags, param):
         hsv = cv2.cvtColor(selected_frame, cv2.COLOR_BGR2HSV)
         hsvList.append(hsv[y, x])
         print(hsvList)
-        if len(hsvList) > 10:
+        if len(hsvList) > 5:
             calculate_hsv_bounds()
 
 # Calculate lower and upper HSV bounds based on stored HSV coordinates
@@ -53,11 +54,12 @@ ret, frame = cap.read()
 frame_width = int(cap.get(3))
 frame_height = int(cap.get(4))
 size = (frame_width, frame_height)
-
+ratio = size[1]/size[0]
+cv2.resizeWindow("frame", window_size, int(window_size*ratio))
 selected_frame = frame
 
 # Show the selected frame for HSV color selection
-selected_frame = cv2.resize(selected_frame, size, fx=0.4, fy=0.4)
+# selected_frame = cv2.resize(selected_frame, size, fx=0.4, fy=0.4)
 cv2.imshow('frame', selected_frame)
 
 # Set a mouse callback function to get the HSV color coordinate of the pixel
@@ -71,9 +73,6 @@ if cv2.waitKey() & 0xFF == ord('q'):
 
 
 
-# Continue with the second code using calculated lower_color and upper_color
-# ... (paste the second code from the previous response here)
-
 # We need to set resolutions.
 # so, convert them from float to integer.
 frame_width = int(cap.get(3))
@@ -82,33 +81,72 @@ frame_height = int(cap.get(4))
 size = (frame_width, frame_height)
 
 # Below VideoWriter object will create
-# a frame of above defined The output
-# is stored in 'filename.avi' file.
-
+# a video of the "filename.xxx" with 
+# ball trajectory
 if write_result:
     result = cv2.VideoWriter(videoname + ' with trajectory.mp4',
                              cv2.VideoWriter_fourcc(*'mp4v'),
                              60, size)
+    
 
+# Two windows to show what is going on behind the scene
+cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
+cv2.namedWindow("binary", cv2.WINDOW_NORMAL)
+
+cv2.resizeWindow("binary", window_size, int(window_size*ratio))
+
+  
+def erosion(val):
+    global mask
+    erosion_size = cv2.getTrackbarPos("Erosion kernal size = 2n+1", 'binary')
+    erosion_element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
+                                                (2 * erosion_size + 1, 2 * erosion_size + 1), 
+                                                (erosion_size, erosion_size))
+    mask = cv2.erode(mask, erosion_element)
+    cv2.imshow("binary", mask)
+    
+    
+def dilation(val):
+    global mask
+    dilation_size = cv2.getTrackbarPos("Dilation kernal size = 2n+1", 'binary')
+    dilation_element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
+                                                 (2 * dilation_size + 1, 2 * dilation_size + 1), 
+                                                 (dilation_size, dilation_size))
+    mask = cv2.dilate(mask, dilation_element)
+    cv2.imshow("binary", mask)
+
+max_erosion_size = 21
+max_dilation_size = 21
+
+cv2.createTrackbar("Erosion kernal size = 2n+1", "binary", 0, max_erosion_size, erosion)
+cv2.createTrackbar("Dilation kernal size = 2n+1", "binary", 0, max_dilation_size, dilation)
+
+  
+    
 while True:
     # Read a frame from the webcam
     ret, frame = cap.read()
 
+    if frame is None:
+        if write_result:
+            result.close()
+        break
     # Convert the frame from BGR to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Threshold the frame to get only the color pixels
     mask = cv2.inRange(hsv, lower_color, upper_color)
+
     #TODO:Figure out the erode and dilate mechanisms
+    
     '''
     This part is the key to getting precise contour of the object
     '''
-    mask = cv2.erode(mask, None, iterations=2)
-    mask = cv2.dilate(mask, None, iterations=2)
-    # Convert the mask to a binary image
+    erosion(0)
+    dilation(0)
+
+    
     binary = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)[1]
-    # cv2.imshow('binary', mask)
-    cv2.waitKey()
     # Find the contours of the color objects in the binary image
     contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -128,7 +166,6 @@ while True:
         # Draw the fitted ellipse
         cv2.ellipse(frame, ellipse, (0, 0, 255), 2)
 
-
         # Draw the center of the fitted ellipse
         cv2.circle(frame, (int(center[0]), int(center[1])), 4, (255, 0, 0), -8)
         
@@ -142,11 +179,13 @@ while True:
     # Show the frame
     if write_result:
         result.write(frame)
-    frame = cv2.resize(frame, (0, 0), fx=0.4, fy=0.4)  # 将视频缩放，高=fy，宽=fx
+    #frame = cv2.resize(frame, (0, 0), fx=0.4, fy=0.4)  # 将视频缩放，高=fy，宽=fx
+    
+    cv2.resizeWindow("frame", window_size, int(window_size*ratio))
     cv2.imshow('frame', frame)
-
     # Exit the loop if the 'q' key is pressed
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey() & 0xFF == ord('q'):
+        cv2.destroyAllWindows()
         break
 
 # Release the webcam and close all windows
