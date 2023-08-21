@@ -50,26 +50,34 @@ def calculate_hsv_bounds():
 cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
 print('Click on the screen to get HSV readings')
 
-ret, frame = cap.read()
-frame_width = int(cap.get(3))
-frame_height = int(cap.get(4))
-size = (frame_width, frame_height)
-ratio = size[1]/size[0]
-cv2.resizeWindow("frame", window_size, int(window_size*ratio))
-selected_frame = frame
+while True:
+    if cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) != 1:
+        break
+        
+    ret, frame = cap.read()
+    frame_width = int(cap.get(3))
+    frame_height = int(cap.get(4))
+    size = (frame_width, frame_height)
+    ratio = size[1]/size[0]
+    selected_frame = frame
+    cv2.resizeWindow("frame", window_size, int(window_size*ratio))
+    # Show the selected frame for HSV color selection
+    # selected_frame = cv2.resize(selected_frame, size, fx=0.4, fy=0.4)
+    cv2.imshow('frame', selected_frame)
 
-# Show the selected frame for HSV color selection
-# selected_frame = cv2.resize(selected_frame, size, fx=0.4, fy=0.4)
-cv2.imshow('frame', selected_frame)
+    # Set a mouse callback function to get the HSV color coordinate of the pixel
+    cv2.setMouseCallback('frame', get_color)
 
-# Set a mouse callback function to get the HSV color coordinate of the pixel
-cv2.setMouseCallback('frame', get_color)
+    # If there is no more window left, meaning that setMouseCallback() has done its job,
+    # exit the loop
+    print(cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE))
 
-# Wait for user input and exit on 'q' key press
-if cv2.waitKey() & 0xFF == ord('q'):
-    cv2.destroyAllWindows()
+    # Wait for user input and exit on 'q' key press
+    if cv2.waitKey() & 0xFF == ord('q'):
+        cv2.destroyAllWindows()
+        break
 
-#  close all windows
+        #  close all windows and exit the loop
 
 
 
@@ -95,57 +103,12 @@ cv2.namedWindow("binary", cv2.WINDOW_NORMAL)
 
 cv2.resizeWindow("binary", window_size, int(window_size*ratio))
 
-  
-def erosion(val):
-    global mask
-    erosion_size = cv2.getTrackbarPos("Erosion kernal size = 2n+1", 'binary')
-    erosion_element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
-                                                (2 * erosion_size + 1, 2 * erosion_size + 1), 
-                                                (erosion_size, erosion_size))
-    mask = cv2.erode(mask, erosion_element)
-    cv2.imshow("binary", mask)
-    
-    
-def dilation(val):
-    global mask
-    dilation_size = cv2.getTrackbarPos("Dilation kernal size = 2n+1", 'binary')
-    dilation_element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
-                                                 (2 * dilation_size + 1, 2 * dilation_size + 1), 
-                                                 (dilation_size, dilation_size))
-    mask = cv2.dilate(mask, dilation_element)
-    cv2.imshow("binary", mask)
-
-max_erosion_size = 21
-max_dilation_size = 21
-
-cv2.createTrackbar("Erosion kernal size = 2n+1", "binary", 0, max_erosion_size, erosion)
-cv2.createTrackbar("Dilation kernal size = 2n+1", "binary", 0, max_dilation_size, dilation)
-
-  
-    
-while True:
-    # Read a frame from the webcam
-    ret, frame = cap.read()
-
-    if frame is None:
-        if write_result:
-            result.close()
-        break
-    # Convert the frame from BGR to HSV
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    # Threshold the frame to get only the color pixels
-    mask = cv2.inRange(hsv, lower_color, upper_color)
-
-    #TODO:Figure out the erode and dilate mechanisms
-    
-    '''
-    This part is the key to getting precise contour of the object
-    '''
-    erosion(0)
-    dilation(0)
-
-    
+def findEllipseAndDraw(mask):
+    global write_result
+    """
+    Find the ellipse based on a masked image, draw the past trajectory of the object and its shape, center
+    Write the result if specified by var(write_result)
+    """
     binary = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)[1]
     # Find the contours of the color objects in the binary image
     contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -179,10 +142,58 @@ while True:
     # Show the frame
     if write_result:
         result.write(frame)
-    #frame = cv2.resize(frame, (0, 0), fx=0.4, fy=0.4)  # 将视频缩放，高=fy，宽=fx
-    
     cv2.resizeWindow("frame", window_size, int(window_size*ratio))
     cv2.imshow('frame', frame)
+    
+def erosion(val):
+    global mask, erosion_dst
+    erosion_size = cv2.getTrackbarPos("Erosion kernal size = 2n+1", 'binary')
+    erosion_element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
+                                                (2 * erosion_size + 1, 2 * erosion_size + 1), 
+                                                (erosion_size, erosion_size))
+    erosion_dst = cv2.erode(thresholded_image, erosion_element)
+    cv2.imshow("binary", erosion_dst)
+    
+    
+def dilation(val):
+    global thresholded_image, dilation_dst
+    dilation_size = cv2.getTrackbarPos("Dilation kernal size = 2n+1", 'binary')
+    dilation_element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, 
+                                                 (2 * dilation_size + 1, 2 * dilation_size + 1), 
+                                                 (dilation_size, dilation_size))
+    dilation_dst = cv2.dilate(erosion_dst, dilation_element)
+    cv2.imshow("binary", dilation_dst)
+
+max_erosion_size = 21
+max_dilation_size = 21
+
+cv2.createTrackbar("Erosion kernal size = 2n+1", "binary", 0, max_erosion_size, erosion)
+cv2.createTrackbar("Dilation kernal size = 2n+1", "binary", 0, max_dilation_size, dilation)
+
+  
+    
+while True:
+    # Read a frame from the webcam
+    ret, frame = cap.read()
+
+    if frame is None:
+        if write_result:
+            result.close()
+        break
+    # Convert the frame from BGR to HSV
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Threshold the frame to get only the selected color pixels
+    thresholded_image = cv2.inRange(hsv, lower_color, upper_color)
+
+    '''
+    This part is the key to getting precise contour of the object
+    '''
+    erosion(0)
+    dilation(0)
+    mask = dilation_dst
+    findEllipseAndDraw(mask)
+    
     # Exit the loop if the 'q' key is pressed
     if cv2.waitKey() & 0xFF == ord('q'):
         cv2.destroyAllWindows()
